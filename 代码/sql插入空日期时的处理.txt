@@ -1,0 +1,27 @@
+warehousing_time = time_transform(row_value[14]) if row_value[14] != '' else '-null-'
+                delivery_time = time_transform(row_value[15]) if row_value[15] != '' else '-null-'
+                status = '0'
+                insert_sql = "INSERT INTO sn_pool_info(storage_room,factory, order_no,external_no, external_item_no," \
+                             "item_name, item_sn_no, contract_no, box_no, supplier, batch_no, production_date, " \
+                             "item_attribute, identification, warehousing_time, delivery_time, " \
+                             "status,create_uid, create_date, write_uid, write_date) VALUES('" + storage_room + "','" + \
+                             factory + "','" + order_no + "','" + external_no + "','" + external_item_no + "','" + item_name \
+                             + "','" + \
+                             item_sn_no + "','" + contract_no + "','" + box_no + "','" + supplier + "','"\
+                             + batch_no + "','" + production_date + "','" + item_attribute + "','"\
+                             + identification + "','" + warehousing_time + "','" + \
+                             delivery_time + "','" + status + "','" + str(u_id) + "','" + now_time + "','" + \
+                             str(u_id) + "','" \
+                             + now_time + "')" \
+                             "ON CONFLICT (order_no, item_sn_no) " \
+                             "DO " \
+                             "UPDATE SET storage_room='" + storage_room + "',factory='" + factory + "',order_no='" + order_no + "" \
+                             "',external_no='" + external_no + "',external_item_no='" + external_item_no + "',item_name='" + item_name + "" \
+                             "',item_sn_no='" + item_sn_no + "',contract_no='" + contract_no + "',box_no='" \
+                             + box_no + "',supplier='" + supplier + "',batch_no='" + batch_no + "',production_date='"\
+                             + production_date + "',item_attribute='" + item_attribute + "',identification='" + identification + "" \
+                            "',warehousing_time='" + str(warehousing_time) + "',delivery_time='" + \
+                             str(delivery_time) + "',status='" + status + "',write_uid='" + str(u_id) + \
+                             "',write_date='" + now_time + "'"
+                insert_sql = str(insert_sql).lstrip("(").rstrip(")").replace('\'-', '').replace('-\'', '')
+                insert_sql_list.append(insert_sql)

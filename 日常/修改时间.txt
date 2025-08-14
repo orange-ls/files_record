@@ -1,0 +1,30 @@
+@echo off
+setlocal enabledelayedexpansion
+
+net session >nul 2>&1
+if %errorlevel% == 0 (
+    goto :CheckAdminSuccess
+) else (
+    goto :RequestAdmin
+)
+
+:RequestAdmin
+mshta vbscript:CreateObject("Shell.Application").ShellExecute("cmd.exe","/c ""%~s0""","","runas",1)(window.close)
+exit /b
+
+:CheckAdminSuccess
+for /f "tokens=2 delims==." %%a in ('wmic os get localdatetime /value 2^>NUL') do (
+    set "original_datetime=%%a"
+    set "timezone=%%a"
+)
+set "timezone=!timezone:*+=+!"
+
+set "new_datetime=20240101000000.000000%timezone%"
+
+wmic os set localdatetime="%new_datetime%" >nul
+
+timeout /t 5 >nul
+
+wmic os set localdatetime="%original_datetime%" >nul
+
+exit

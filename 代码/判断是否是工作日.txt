@@ -1,0 +1,15 @@
+import datetime
+
+from chinese_calendar import is_holiday, is_workday
+
+# 调班，上班
+day1 = datetime.date(2024, 10, 20)
+# 休息
+day2 = datetime.date(2024, 12, 7)
+# 上班
+day3 = datetime.date(2024, 12, 6)
+
+# 返回值为True或False
+print(is_workday(day1))
+print(is_workday(day2))
+print(is_workday(day3))

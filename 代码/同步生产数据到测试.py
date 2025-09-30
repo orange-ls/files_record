@@ -81,6 +81,7 @@ table_map = [
     {'en': 'purchasing_transit', 'ch': '采购在途'},
     {'en': 'material_transformation', 'ch': '物料转换'},
     {'en': 'reject_ratio', 'ch': '不良率'},
+    {'en': 'dump_transit', 'ch': '转储在途'},
 ]
 
 for t in table_map:

@@ -69,19 +69,20 @@ sink {{
 
 
 table_map = [
-    {'en': 'purchase_order_inventory', 'ch': 'PO单与存量'},
-    {'en': 'base_material', 'ch': '物料基础数据'},
-    {'en': 'bundling_part_number', 'ch': '捆绑料号'},
-    {'en': 'non_electronic_materials', 'ch': '非电子物料'},
-    {'en': 'material_bom', 'ch': '物料BOM'},
-    {'en': 'reservoir_area_stock', 'ch': '各库区库存'},
-    {'en': 'other_reservoir_area_stock', 'ch': '其他库区库存'},
-    {'en': 'kunpeng_daily', 'ch': '鲲鹏日报'},
-    {'en': 'rma_transit', 'ch': 'RMA在途'},
-    {'en': 'purchasing_transit', 'ch': '采购在途'},
-    {'en': 'material_transformation', 'ch': '物料转换'},
-    {'en': 'reject_ratio', 'ch': '不良率'},
-    {'en': 'dump_transit', 'ch': '转储在途'},
+    # {'en': 'purchase_order_inventory', 'ch': 'PO单与存量'},
+    # {'en': 'base_material', 'ch': '物料基础数据'},
+    # {'en': 'bundling_part_number', 'ch': '捆绑料号'},
+    # {'en': 'non_electronic_materials', 'ch': '非电子物料'},
+    # {'en': 'material_bom', 'ch': '物料BOM'},
+    # {'en': 'reservoir_area_stock', 'ch': '各库区库存'},
+    # {'en': 'other_reservoir_area_stock', 'ch': '其他库区库存'},
+    # {'en': 'kunpeng_daily', 'ch': '鲲鹏日报'},
+    # {'en': 'rma_transit', 'ch': 'RMA在途'},
+    # {'en': 'purchasing_transit', 'ch': '采购在途'},
+    # {'en': 'material_transformation', 'ch': '物料转换'},
+    # {'en': 'reject_ratio', 'ch': '不良率'},
+    # {'en': 'dump_transit', 'ch': '转储在途'},
+    {'en': 'bom_total_table', 'ch': 'BOM总表'},
 ]
 
 for t in table_map:

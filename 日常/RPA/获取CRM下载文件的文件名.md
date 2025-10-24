@@ -1,30 +1,49 @@
 ```
 Function 下载表格文件(thisRow,excelName)
+	// 先删除旧文件
+	dFile = excelName & "_" & Time.Format(Time.Now(),"yyyymmdd")  & "*" & ".xlsx"
+	arrFiles = File.SearchFile(g_dictGlobal["Chrome下载路径"],dFile,True)
+	For Each file_path In arrFiles
+		File.DeleteFile(file_path)
+	Next
+	
 	Log.Info("点击下载按钮")
 	#icon("@res:default.png")
 	rowAry = UiElement.GetChildren(thisRow,{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
 	dAry = UiElement.GetChildren(rowAry[3],{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
 	// TracePrint(dAry)
 	downloadButton = UiElement.GetChildren(dAry[0],{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
-	TracePrint(downloadButton)
+	// TracePrint(downloadButton)
 	#icon("@res:default.png")
 	Mouse.Action(downloadButton[0],"left","click",10000,{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200,"bSetForeground":True,"sCursorPosition":"Center","iCursorOffsetX":0,"iCursorOffsetY":0,"sKeyModifiers":[],"sSimulate":"simulate","bMoveSmoothly":False})
 	Log.Info("移动表格文件到目标文件夹")
-    // dFile = g_dictGlobal["Chrome下载路径"] & "\\" & excelName & "_" & Time.Format(Time.Now(),"yyyymmdd") & ".xlsx"
-    dFile = excelName & "_" & Time.Format(Time.Now(),"yyyymmdd") & "*"
-    // 等待表格下载完成，最多等待5分钟
+	// dFile = g_dictGlobal["Chrome下载路径"] & "\\" & excelName & "_" & Time.Format(Time.Now(),"yyyymmdd") & ".xlsx"
+	// dFile = excelName & "_" & Time.Format(Time.Now(),"yyyymmdd")  & "*" & ".xlsx"
+	// 等待表格下载完成，最多等待5分钟
 	For i=0 To 150
 		Delay(2000)
 		// bRet = File.FileExists(dFile)
-        // 查找匹配模式的文件
-        arrFiles = File.SearchFile(g_dictGlobal["Chrome下载路径"],dFile,true)
+		// 查找匹配模式的文件
+		arrFiles = File.SearchFile(g_dictGlobal["Chrome下载路径"],dFile,True)
 		// 遍历文件，查找匹配的文件
-        If Len(arrFiles) > 0
-            dFile = arrFiles[Len(arrFiles)-1]
-            Break
-        End If
+		If Len(arrFiles) > 0
+			dFile = arrFiles[Len(arrFiles)-1]
+			Break
+		End If
 	Next
-	File.MoveFile(dFile, g_dictGlobal["云服务中间数据存放文件夹"],False)
+	log.Info(dFile)
+	File.MoveFile(dFile, g_dictGlobal["企业中间数据存放文件夹"],False)
+	// 获取实际文件路径
+	Delay(1000)
+	file_Name = File.BaseName(dFile,False) & ".xlsx"
+	dfile_path = File.SearchFile(g_dictGlobal["企业中间数据存放文件夹"],file_Name,True)[0]
+	Log.Info(dfile_path)
+	If excelName = "厂商PO号对象导出结果"
+		g_dictGlobal["厂商PO号"] = dfile_path
+	Else
+		g_dictGlobal["退货-华为"] = dfile_path
+	End If
+	
 End Function
 ```
 

@@ -4,3 +4,7 @@ kt_ship_date 为str类型的时间，使用以下代码，将str -> datetime -> 
 from datetime import datetime, date
 ......
 	kt_ship_date = datetime.strptime(kt_ship_date, '%Y-%m-%d').date() 
+
+
+date -> str：
+datetime.strftime((kt_ship_date, '%Y-%m-%d')

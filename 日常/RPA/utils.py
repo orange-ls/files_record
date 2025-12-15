@@ -517,7 +517,52 @@ def get_latest_email():
         print(f"发生错误: {e}")
 
 
+def merged_excel_file(file_list,output_file):
+    """合并多个Excel文件"""
+    try:
+        writer = pd.ExcelWriter(output_file)
+        for file in file_list:
+            df = pd.read_excel(file)
+            df.to_excel(writer,sheet_name=os.path.basename(file),index=False)
+        writer.save()
+        print(f"合并文件 {file_list} 成功，输出文件为 {output_file}")
+    except Exception as e:
+        print(f"合并文件 {file_list} 失败: {e}")
 
+
+def merge_same_table(file_path1,file_path2):
+    """合并两个相同表格"""
+    try:
+        df1 = pd.read_excel(file_path1)
+        df2 = pd.read_excel(file_path2)
+        df = pd.concat([df1,df2],ignore_index=True)
+        df.to_excel(file_path1,index=False)
+        print(f"合并文件 {file_path1} 和 {file_path2} 成功")
+    except Exception as e:
+        print(f"合并文件 {file_path1} 和 {file_path2} 失败: {e}")
+
+
+def merge_two_excel(one_table, two_table, output_path=None):
+    """
+    合并多个Excel文件到单个文件
+    :param one_table: 第一个表路径
+    :param two_table: 第二个表路径
+    :return: 合并后的文件路径
+    """
+    # 取合并前表格的路径，拼接成结果表的路径
+    if not output_path:
+        output_path = os.path.join(os.path.dirname(one_table), f'厂商PO号对象导出结果_{datetime.now().strftime("%Y%m%d")}.xlsx')
+
+    # 读取第一个Excel文件
+    df1 = pd.read_excel(one_table)
+    # 读取第二个Excel文件
+    df2 = pd.read_excel(two_table)
+    # 合并两个DataFrame
+    merged_df = pd.concat([df1, df2], ignore_index=True)
+
+    # 将合并后的DataFrame写入新的Excel文件
+    merged_df.to_excel(output_path, index=False)
+    return output_path
 
 
 if __name__ == '__main__':

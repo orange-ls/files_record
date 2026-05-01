@@ -1,0 +1,154 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.4.15",
+    "lastTouchedAt": "2026-04-29T06:18:36.063Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-31T08:07:47.147Z",
+    "lastRunVersion": "2026.3.24",
+    "lastRunCommand": "doctor",
+    "lastRunMode": "local"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "local": {
+        "baseUrl": "http://10.126.78.175:8077/v1",
+        "apiKey": "sk-local",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "glm-5",
+            "name": "本地 glm-5 ",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 32768,
+            "maxTokens": 4096,
+            "compat": {}
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "local/glm-5"
+      },
+      "models": {
+        "local/glm-5": {}
+      },
+      "compaction": {
+        "mode": "safeguard"
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "subagents": {
+          "allowAgents": [
+            "spare_parts"
+          ]
+        }
+      },
+      {
+        "id": "spare_parts",
+        "name": "spare_parts",
+        "workspace": "C:\\Users\\user\\.openclaw\\workspace-spare_parts",
+        "agentDir": "C:\\Users\\user\\.openclaw\\agents\\spare_parts\\agent"
+      }
+    ]
+  },
+  "tools": {
+    "profile": "full",
+    "sessions": {
+      "visibility": "all"
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": {
+      "allowedOrigins": [
+        "tauri://localhost",
+        "https://tauri.localhost",
+        "http://localhost",
+        "http://localhost:1420",
+        "http://127.0.0.1:1420",
+        "http://172.18.0.13:1420"
+      ]
+    },
+    "auth": {
+      "mode": "token",
+      "token": "db240d9dcfa8ff5214d0cfed66fd93cc83a0dbfd6515463b"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "contacts.add",
+        "calendar.add",
+        "reminders.add",
+        "sms.send"
+      ]
+    }
+  },
+  "mcp": {
+    "servers": {
+      "postgres": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-postgres",
+          "postgresql://odoo:xctest$@10.0.23.146:54321/xc-test"
+        ]
+      }
+    }
+  },
+  "skills": {
+    "entries": {
+      "example-skill": {
+        "enabled": false
+      },
+      "xc_spare_parts": {
+        "enabled": false
+      }
+    }
+  },
+  "update": {
+    "channel": "stable"
+  },
+  "discovery": {
+    "mdns": {
+      "mode": "off"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "memory-core": {
+        "config": {
+          "dreaming": {
+            "enabled": false
+          }
+        }
+      }
+    }
+  }
+}

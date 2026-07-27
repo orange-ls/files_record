@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://odoo:xctest$@10.0.23.146:54321/xc-test?sslmode=disable"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "query"
+      ]
+    },
+    "executeautomation-playwright-server": {
+      "description": "A Model Context Protocol server that provides browser automation capabilities using Playwright.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@executeautomation/playwright-mcp-server"
+      ],
+      "autoApprove": [
+        "playwright_evaluate",
+        "playwright_click",
+        "playwright_screenshot",
+        "playwright_get_visible_html",
+        "playwright_console_logs",
+        "playwright_close",
+        "playwright_navigate",
+        "playwright_fill",
+        "playwright_press_key"
+      ],
+      "disabled": true
+    },
+    "playwright-remote": {
+      "url": "http://localhost:3002/sse",
+      "disabled": true
+    }
+  }
+}

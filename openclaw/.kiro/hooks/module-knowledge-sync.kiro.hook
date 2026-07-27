@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "模块知识库同步更新",
+  "description": "在 spec 任务完成后，检查本次变更涉及的 xc_addons 模块，自动更新对应模块在 .kiro/skills/{module}/{module}-knowledge/SKILL.md 中的知识库内容",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "刚完成了一个 spec 任务。请执行以下操作：\n\n1. 分析刚完成的任务涉及了 xc_addons 下的哪些模块（检查本次变更的文件路径）\n2. 对每个受影响的模块，检查是否存在 .kiro/skills/{module}/{module}-knowledge/SKILL.md\n3. 如果 SKILL.md 存在，读取当前内容，然后根据本次变更（新增/删除模型、新增功能、变更外部集成、新增业务术语等）更新对应章节\n4. 如果 SKILL.md 不存在，按照 .kiro/skills/skill-creator/references/module-knowledge-template.md 中的标准章节结构创建\n5. 更新时严格遵循模板中的章节结构：模块概述、核心业务流程、数据模型、主要功能模块、外部集成、系统术语\n6. 信息来源优先级：models/ 目录 > controllers/ 目录 > data/ 目录 > views/ 目录 > __manifest__.py\n\n注意：只更新本次变更实际影响到的章节，不要重写未受影响的内容。"
+  },
+  "workspaceFolderName": "xinchuang-materiel",
+  "shortName": "module-knowledge-sync"
+}

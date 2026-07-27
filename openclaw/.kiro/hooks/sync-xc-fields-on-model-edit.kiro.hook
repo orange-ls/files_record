@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "同步 xc_fields 字段文档",
+  "description": "当 xc_addons 下的模型文件被修改时，提醒运行 gen_xc_fields.py 更新字段文档",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "xc_addons/**/model/*.py",
+      "xc_addons/**/models/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "用户刚刚修改了 xc_addons 下的模型文件。请检查修改的文件路径，提取模块名（xc_addons/{module_name}/...），然后提示用户运行以下命令更新 xc_fields 字段文档：\n\npython xc_tools/gen_xc_fields.py --module {module_name}\n\n如果需要全量更新所有模块，运行：\npython xc_tools/gen_xc_fields.py\n\n只需简短提示，不要自动执行。"
+  }
+}

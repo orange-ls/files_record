@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Git Commit Changelog",
+  "description": "手动触发：读取最近一次 git commit 的变更文件，按模块汇总生成 changelog 条目到各模块的 log 目录",
+  "version": "1.2.0",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "请执行以下操作，生成 git commit 后的 changelog：\n\n## 第1步：获取基础信息\n\n1. 运行 `git branch --show-current` 获取当前分支名\n2. 运行以下命令获取 commit 信息（注意 Windows 编码问题，必须加 encoding 前缀）：\n   ```\n   [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; git log -1 --pretty=format:\"%h %s\"\n   ```\n3. 运行 `git diff HEAD~1 --name-only` 获取修改的文件列表\n   - 如果命令报错（如首次 commit 无 HEAD~1），改用 `git diff --name-only HEAD` 或 `git show --name-only --pretty=format:\"\" HEAD`\n4. 运行 `git diff HEAD~1 --stat` 获取变更统计\n\n## 第2步：筛选 xc_addons 下的模块\n\n- 只处理 `xc_addons/` 下的文件变更\n- 从文件路径提取模块名（xc_addons/ 下的第一级目录名，如 xc_sn、xc_common）\n- 忽略以下文件：.pyc、__pycache__/、.kiro/、changelog/CHANGELOG.md\n- 如果没有 xc_addons 下的有效变更，直接通知「本次 commit 不涉及 xc_addons 模块，无需更新 changelog」并结束\n\n## 第3步：查看具体变更\n\n对每个涉及的模块，运行：\n```\n[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; git diff HEAD~1 --no-color -- xc_addons/{模块名}/\n```\n分析 diff 内容，理解每个变更的语义。\n\n注意：如果 diff 输出过大，可以分文件查看，或只看 `--stat` 摘要配合文件名推断变更意图。\n\n## 第4步：生成 changelog 条目\n\n- 使用 Conventional Commits 风格：feat/fix/refactor/chore/docs/perf/style 等\n- 用中文描述变更内容，简洁准确\n- 如果一个模块有多处不同类型的变更，生成多条条目\n- 格式：`- {type}: {描述} ({commit_hash})`\n\n## 第5步：写入 CHANGELOG.md\n\n### 路径规则\n- 每个模块的 CHANGELOG 路径：`xc_addons/{模块名}/changelog/CHANGELOG.md`\n- fsWrite 会自动创建不存在的父目录，无需手动建目录\n\n### 文件格式\n如果 CHANGELOG.md 不存在，创建它：\n```markdown\n# Changelog - {模块名}\n\n## [{分支名}] - Unreleased\n\n### {YYYY-MM-DD}\n- {type}: {描述} ({commit_hash})\n```\n\n如果已存在：\n- 先用 readFile 读取现有内容\n- 检查是否有当前分支的 section `## [{分支名}]`\n  - 有：检查是否有今天日期的 `### {YYYY-MM-DD}` 子节，有则在该日期节末尾追加条目，没有则在该分支 section 下新建日期子节\n  - 没有：在文件标题行之后插入新的分支 section（包含日期子节和条目）\n- 使用 strReplace 精确插入，保持已有条目不变\n\n## 第6步：完成通知\n\n输出：「分支 {branch} 的 Changelog 已根据最近 commit 更新」\n并列出每个模块新增的条目摘要。"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "代码写入后触发需求追溯",
+  "description": "当 agent 使用写入工具（fsWrite、strReplace、editCode 等）修改或创建代码后，自动提醒激活 develop_code_traceability 技能，确保 xc_addons 下的 Python 代码遵循需求追溯标注规范。",
+  "version": "1",
+  "when": {
+    "type": "postToolUse",
+    "toolTypes": [
+      "write"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "检测到写入工具被执行。如果本次写入涉及 xc_addons 目录下的 Python 文件（.py），请立即激活 develop_code_traceability 技能，并确保代码遵循需求追溯标注规范：1) 业务函数的 docstring 中包含 @requirement 和 @task 标注；2) 关键业务逻辑处有行内注释标注；3) docstring 说明业务背景和设计决策（\"为什么\"而非\"做了什么\"）；4) 如有对应的 spec 目录，更新 traceability-matrix.md。如果写入的不是 xc_addons 下的 Python 文件，则忽略此提醒。"
+  },
+  "workspaceFolderName": "xinchuang-materiel",
+  "shortName": "traceability-on-write"
+}

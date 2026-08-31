@@ -48,3 +48,8 @@ DB账号：
 http://db-portal.e-bridge.com.cn/cas/login?service=http%3a%2f%2fdboms.e-bridge.com.cn%2fPages%2fMainPage.aspx
 huaweisbu-jiqiren
 JIQIREN12.
+
+毛利分析RPA：
+    OA账号：
+    huaweisbu-jiqiren
+    Jiqiren0428@

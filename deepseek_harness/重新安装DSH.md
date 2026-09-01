@@ -144,3 +144,23 @@ pnpm config set registry https://registry.npmmirror.com
 ## ✅ 完成
 
 至此，你已拥有一个干净、无插件残留的 DSH 环境。如果仍有问题，请提供具体的错误日志，以便进一步排查。
+
+
+
+
+
+---
+
+附：
+
+问题一：
+
+```
+
+
+apps/web build: Failed
+D:\project\aibms-dsh\apps\web:
+[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @deepseek-ai/dsh-web-frontend@0.1.2-alpha.3 build: `vite build`
+Exit status 1
+```
+

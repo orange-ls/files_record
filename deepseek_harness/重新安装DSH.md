@@ -156,11 +156,16 @@ pnpm config set registry https://registry.npmmirror.com
 问题一：
 
 ```
-
+build时出现报错：
 
 apps/web build: Failed
 D:\project\aibms-dsh\apps\web:
 [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @deepseek-ai/dsh-web-frontend@0.1.2-alpha.3 build: `vite build`
 Exit status 1
+
+解决方法：
+pnpm clean
+pnpm install
+pnpm run build
 ```
 

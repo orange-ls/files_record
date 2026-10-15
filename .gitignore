@@ -1,2 +1,5 @@
 # Visual Studio 文件夹
 .vs
+
+# WorkBuddy 本地记忆与工作区数据
+.workbuddy/

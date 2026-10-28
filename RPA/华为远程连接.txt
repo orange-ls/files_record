@@ -39,10 +39,10 @@ work激活码：7EoH9-Z866J-8T7EF-77J6K-RGNEA-A21SJ
 
 ===============================================
 华为账号：
-userhf =hfszsm
-pwdhf ="shenma2026Q3!"
-userbj =szshbj
-pwdbj ="shenma2026Q3@"
+userhf = hfszsm
+pwdhf = shenma2026Q3!
+userbj = szshbj
+pwdbj = shenma2026Q3@
 
 
 -------------------------------------------------------------

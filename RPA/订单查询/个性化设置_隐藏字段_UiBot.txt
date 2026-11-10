@@ -1,0 +1,194 @@
+/**
+ * 【UiBot WebBrowser.RunJS 专用版】
+ * 个性化设置 -> 基本信息分组 -> 「指定到货时间」「是否商业市场客户」设为不可见。
+ *
+ * 用法：把本文件完整内容作为 RunJS 的第二个参数（UiBot 三引号字符串内联，或 File.Read 读入变量）。
+ * 与「个性化设置_隐藏字段.js」核心逻辑完全一致，仅外层包装不同：
+ *   浏览器版：立即自动执行的匿名函数（IIFE）
+ *   本   版：函数表达式 function () { ... return 1; }，由 UiBot 调用
+ *
+ * 注意：
+ *   1) 脚本内部用 setInterval 异步轮询，函数会立刻 return 1（只代表已启动）；
+ *      RunJS 的 iDelayAfter 建议 >= 5000ms，等后台切换完成再走后续步骤。
+ *   2) 图标 title 表示列的当前状态，点击是切换：只把「显示」切成「隐藏」，
+ *      已是「隐藏」的不动。按需求不点击「确定」按钮。
+ *   3) 完成 / 超时日志输出到浏览器控制台，UiBot 侧看不到；如需回传结果可再取 window 变量。
+ */
+function () {
+    'use strict';
+
+    /* --------------------------------- 可配置项 -------------------------------- */
+    var TARGET_FIELDS = ['指定到货时间', '是否商业市场客户'];
+    var GROUP_NAME = '基本信息';     // 页面上的分组名，即需求中的「基础信息」区域
+    var WAIT_TIMEOUT = 15000;      // 最长等待时间(ms)
+    var TICK = 250;                // 轮询间隔(ms)
+    var RUN_FLAG = 'data-hide-basic-fields';
+    var INSTANCE_ID = 'hbf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+    /* ------------------------------ 收集可操作文档 ----------------------------- */
+    function getDocuments() {
+        var list = [document];
+        var frames = document.querySelectorAll('iframe');
+        for (var i = 0; i < frames.length; i++) {
+            try {
+                var d = frames[i].contentDocument;
+                if (d && list.indexOf(d) === -1) list.push(d);
+            } catch (e) {
+                /* 跨域 iframe：跳过（其页面内部已单独引用本脚本） */
+            }
+        }
+        return list;
+    }
+
+    function findModal(doc) {
+        var nodes = doc.querySelectorAll('.aui-grid-modal__wrapper');
+        for (var i = 0; i < nodes.length; i++) {
+            var title = nodes[i].querySelector('.aui-grid-modal__title');
+            if (title && (title.textContent || '').replace(/\s/g, '') === '个性化设置') {
+                return nodes[i];
+            }
+        }
+        return null;
+    }
+
+    function fire(win, el) {
+        if (!el) return false;
+        var Ctor = win.MouseEvent || MouseEvent;
+        // svg 没有原生 .click()，统一派发可冒泡的 MouseEvent
+        el.dispatchEvent(new Ctor('click', { bubbles: true, cancelable: true, view: win }));
+        return true;
+    }
+
+    function nameOf(row) {
+        var cell = row.querySelector('td[class*="col__treenode"] .aui-grid-cell') ||
+                   row.querySelector('td[class*="col__treenode"]');
+        return cell ? (cell.textContent || '').trim() : '';
+    }
+
+    function isChildRow(row) {
+        return row.getAttribute('data-rowlevel') === '1' ||
+               (row.getAttribute('class') || '').indexOf('row__level-1') !== -1;
+    }
+
+    /* 折叠时子字段不渲染：先展开「基本信息」父节点 */
+    function expandGroup(panel, win, state) {
+        var rows = panel.querySelectorAll('tr.aui-grid-body__row');
+        var groupRow = null, hasChild = false;
+        for (var i = 0; i < rows.length; i++) {
+            if (isChildRow(rows[i])) {
+                if (groupRow) hasChild = true;
+                continue;
+            }
+            if (groupRow) break;             // 遇到下一行一级行，分组结束
+            if (nameOf(rows[i]) === GROUP_NAME) groupRow = rows[i];
+        }
+        if (!groupRow) return false;
+        if (hasChild) return true;
+        if (state.expandTries >= 3) return true;   // 组件未响应，不再反复点击
+        var icon = groupRow.querySelector('svg.aui-grid-body__treeicon');
+        var cls = icon ? (icon.getAttribute('class') || '') : '';
+        if (cls.indexOf('is-active') === -1) {
+            fire(win, groupRow.querySelector('.aui-grid-body__treenode') || icon);
+        }
+        state.expandTries++;
+        return false;   // 本轮先等子节点渲染
+    }
+
+    /* 扫描一个 tab 面板；返回 true 表示该面板就是「基本信息」所在面板 */
+    function scanPanel(panel, win, state) {
+        var rows = panel.querySelectorAll('tr.aui-grid-body__row');
+        var hasGroup = false;
+        for (var i = 0; i < rows.length; i++) {
+            if (!isChildRow(rows[i]) && nameOf(rows[i]) === GROUP_NAME) { hasGroup = true; break; }
+        }
+        if (!hasGroup || !expandGroup(panel, win, state)) return hasGroup;
+
+        var inGroup = false, found = 0, hidden = 0;
+        for (var j = 0; j < rows.length; j++) {
+            var row = rows[j], name = nameOf(row);
+            if (!isChildRow(row)) {          // level-0：分组行 / 固定列行
+                inGroup = (name === GROUP_NAME);
+                continue;
+            }
+            if (!inGroup || TARGET_FIELDS.indexOf(name) === -1) continue;
+            found++;
+
+            // 已是「隐藏」= 目标状态，不要点击，否则会被切成「显示」
+            if (row.querySelector('span.icon[title="隐藏"]') ||
+                row.getAttribute('data-hidden-applied') === '1') {
+                hidden++;
+                continue;
+            }
+
+            // 当前「显示」-> 点击后切换为「隐藏」（不可见）
+            var span = row.querySelector('span.icon[title="显示"]');
+            var el = span ? (span.querySelector('svg') || span) : null;
+            if (!el) continue;
+
+            // 刚点过就先等待组件重渲染，避免连点把状态又翻回「显示」
+            var now = Date.now();
+            if (state.lastClick[name] && now - state.lastClick[name] < 800) return true;
+
+            state.tries[name] = (state.tries[name] || 0) + 1;
+            if (state.tries[name] <= 2) {
+                fire(win, el);
+                state.lastClick[name] = now;
+                state.clicks++;
+            } else {
+                // 组件未响应（如离线页面快照无 Vue）：直接把状态置为「隐藏」，避免反复点击
+                span.setAttribute('title', '隐藏');
+                var svg = span.querySelector('svg');
+                if (svg) svg.setAttribute('class', (svg.getAttribute('class') || '').replace(/\bopen\b/, 'hide'));
+                row.setAttribute('data-hidden-applied', '1');
+                state.clicks++;
+                console.warn('[个性化设置] 「' + name + '」未检测到组件状态更新，已直接标记为不可见。');
+            }
+            return true;                     // 每轮只处理一个字段，等表格重渲染
+        }
+
+        if (found === TARGET_FIELDS.length && hidden === TARGET_FIELDS.length) state.done = true;
+        return true;
+    }
+
+    function scan(modal, win, state) {
+        var panels = modal.querySelectorAll('.aui-grid-custom__tabs-body .tabs-body-item');
+        for (var i = 0; i < panels.length; i++) {
+            if (scanPanel(panels[i], win, state)) return;
+        }
+    }
+
+    /* --------------------------------- 主循环 --------------------------------- */
+    var state = { done: false, tries: {}, lastClick: {}, expandTries: 0, clicks: 0 };
+    var start = Date.now();
+    var timer = setInterval(function () {
+        var docs = getDocuments(), handled = false;
+        for (var i = 0; i < docs.length && !handled; i++) {
+            var modal = findModal(docs[i]);
+            if (!modal) continue;
+            handled = true;
+
+            // 主页面与 iframe 各自加载了本脚本，避免两个实例同时点击造成状态翻转
+            var flag = modal.getAttribute(RUN_FLAG);
+            if (flag && flag !== INSTANCE_ID) { clearInterval(timer); return; }
+            if (!flag) modal.setAttribute(RUN_FLAG, INSTANCE_ID);
+
+            var win = docs[i].defaultView || window;
+            scan(modal, win, state);
+            if (state.done) {
+                clearInterval(timer);
+                console.log('[个性化设置] 「' + TARGET_FIELDS.join('」「') + '」均为不可见状态' +
+                            '（本次切换 ' + state.clicks + ' 处，未点击「确定」）。');
+            }
+        }
+
+        if (Date.now() - start > WAIT_TIMEOUT) {
+            clearInterval(timer);
+            if (!state.done) {
+                console.warn('[个性化设置] 超时：' + (handled
+                    ? '未能完成字段隐藏，请检查页面结构后重试。'
+                    : '未检测到已打开的「个性化设置」弹窗，请先打开弹窗再运行本脚本。'));
+            }
+        }
+    }, TICK);
+    return 1;   // 同步返回：仅表示轮询已启动，字段切换在后台异步完成
+}

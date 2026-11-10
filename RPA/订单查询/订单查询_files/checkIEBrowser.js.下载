@@ -1,0 +1,408 @@
+function DragEvent() {
+  this.oldGuideOffsetLeft = null
+  this.oldGuideOffsetTop = null
+}
+
+DragEvent.prototype.dragclickConflict = function(dragId) {
+  let self = this
+  try {
+    let drag = document.getElementById(dragId)
+    let curX = drag.offsetLeft
+    let curY = drag.offsetTop
+    return !(Math.abs(curX - self.oldGuideOffsetLeft) < 2 && Math.abs(curY - self.oldGuideOffsetTop) < 2)
+  } catch (e) {
+  }
+}
+
+DragEvent.prototype.init = function(dragId, moveid, storageBack, callback) {
+  let self = this
+  let drag = document.getElementById(dragId)
+  function dragEventHandle(event) {
+    let drag = document.getElementById(moveid)
+    event = event || window.event
+    eventPreventDefault(event)
+
+    let divH = drag.offsetHeight
+    let divW = drag.offsetWidth
+
+    let startX = drag.offsetLeft
+    let startY = drag.offsetTop
+    let mouseX = event.clientX
+    let mouseY = event.clientY
+    let deltaX = mouseX - startX
+    let deltaY = mouseY - startY
+
+    self.oldGuideOffsetLeft = startX
+    self.oldGuideOffsetTop = startY
+
+    dragAddEventListener(drag, moveHandle, upHandle)
+    function moveHandle(event) {
+      eventPreventDefault(event)
+      let computedObj = { drag, event, deltaX, deltaY, divW, divH }
+      computedMove(computedObj)
+    }
+
+    function upHandle() {
+      dragRemoveEventListener(drag, moveHandle, upHandle)
+      storageBack && storageBack(JSON.stringify({ curTop: drag.offsetTop, curLeft: drag.offsetLeft }))
+    }
+  }
+
+  if (document.attachEvent) {
+    drag.attachEvent('onmousedown', dragEventHandle)
+    drag.attachEvent('onclick', () => {
+      if (self.dragclickConflict(dragId)) {
+        return
+      }
+      callback && callback()
+    })
+  } else {
+    drag.addEventListener('mousedown', dragEventHandle, false)
+    drag.addEventListener('click', () => {
+      if (self.dragclickConflict(dragId)) {
+        return
+      }
+      callback && callback()
+    })
+  }
+}
+
+// addEventListener
+function dragAddEventListener(drag, moveHandle, upHandle) {
+  try {
+    if (document.attachEvent) {
+      drag.attachEvent('onmousemove', moveHandle)
+      drag.attachEvent('onmouseup', upHandle)
+      drag.attachEvent('onlosecapture', upHandle)
+      drag.setCapture()
+    } else {
+      document.addEventListener('mousemove', moveHandle, true)
+      document.addEventListener('mouseup', upHandle, true)
+    }
+  } catch (e) {
+  }
+}
+
+// removeEventListener
+function dragRemoveEventListener(drag, moveHandle, upHandle) {
+  try {
+    if (document.attachEvent) {
+      drag.detachEvent('onmousemove', moveHandle)
+      drag.detachEvent('onmouseup', upHandle)
+      drag.detachEvent('onlosecapture', upHandle)
+      drag.releaseCapture()
+    } else {
+      document.removeEventListener('mousemove', moveHandle, true)
+      document.removeEventListener('mouseup', upHandle, true)
+    }
+  } catch (e) {
+  }
+}
+
+function eventPreventDefault(event) {
+  try {
+    if (event.preventDefault) {
+      event.preventDefault()
+    }
+    if (event.stopPropagation) {
+      event.stopPropagation()
+    }
+  } catch (e) {
+  }
+}
+
+// move div
+function computedMove(computedObj) {
+  const { drag, event, deltaX, deltaY, divW, divH } = computedObj
+  if ((event.clientX - deltaX) < 0) {
+    drag.style.left = '0px'
+  } else {
+    let dLeft = (event.clientX - deltaX)
+    let jLeft = findWindowWidth() - divW
+    dLeft = (dLeft < jLeft) ? dLeft : jLeft
+    drag.style.left = dLeft + 'px'
+  }
+
+  if ((event.clientY - deltaY) < 0) {
+    drag.style.top = '0px'
+  } else {
+    let dTop = (event.clientY - deltaY)
+    let jTop = findWindowHeight() - divH
+    dTop = (dTop < jTop) ? dTop : jTop
+    drag.style.top = dTop + 'px'
+  }
+}
+
+// get window width
+function findWindowWidth() {
+  let winWidth = 0
+  if (window.innerWidth) {
+    winWidth = window.innerWidth
+  } else if ((document.body) && (document.body.clientWidth)) {
+    winWidth = document.body.clientWidth
+  }
+  if (document.documentElement && document.documentElement.clientHeight && document.documentElement.clientWidth) {
+    winWidth = document.documentElement.clientWidth
+  }
+  return winWidth
+}
+
+// get window height
+function findWindowHeight() {
+  let winHeight = 0
+  if (window.innerHeight) {
+    winHeight = window.innerHeight
+  } else if ((document.body) && (document.body.clientHeight)) {
+    winHeight = document.body.clientHeight
+  }
+
+  if (document.documentElement && document.documentElement.clientHeight && document.documentElement.clientWidth) {
+    winHeight = document.documentElement.clientHeight
+  }
+  return winHeight
+}
+
+// get browsers language
+function getNavigatorLanguage() {
+  // 浏览器语言let lang = navigator.language || navigator.userLanguage
+  // 浏览器语言 lang = lang.substr(0, 2)
+  return window.location.href.indexOf('/cn/') > -1 ? 'zh' : 'en'
+}
+
+function getI18n() {
+  return {
+    zh: {
+      tips: '提示',
+      content: '检测到您正在使用IE浏览器。为了保证您的使用体验最佳，系统建议你使用Chrome浏览器。',
+      button: '现在跳转',
+      cancel: '不再提示'
+    },
+    en: {
+      tips: 'Tips',
+      content: 'It is detected that you are using Internet Explorer. To ensure optimal user experience, you are advised to use Chrome.',
+      button: 'Now jump',
+      cancel: "Don't Prompt"
+    }
+  }
+}
+
+function createElementWrapper() {
+  let wrapper = document.createElement('div')
+  wrapper.className = 'ebg-turboui-modal--wrapper'
+  wrapper.id = 'ebg-turboui-modal-wrapper'
+  wrapper.style.background = 'rgba(0,0,0,.3)'
+  wrapper.style.position = 'fixed'
+  wrapper.style.zIndex = '99999'
+  wrapper.style.top = '0px'
+  wrapper.style.left = '0px'
+  wrapper.style.width = '100%'
+  wrapper.style.height = '100%'
+  wrapper.style.boxSizing = 'border-box'
+  return wrapper
+}
+
+function createElementBox() {
+  let box = document.createElement('div')
+  box.className = 'ebg-turboui-modal--box'
+  box.id = 'ebg-turboui-modal-box'
+  box.style.background = '#fff'
+  box.style.position = 'absolute'
+  box.style.width = '420px'
+  box.style.height = '184px'
+  box.style.left = 'calc(50% - 210px)'
+  box.style.top = 'calc(50% - 184px)'
+  box.style.border = '1px solid rgba(0,0,0,.2)'
+  box.style.boxShadow = '0 0 10px 0 rgb(0 0 0 / 20%)'
+  box.style.boxSizing = 'border-box'
+  return box
+}
+
+function createElementHeader() {
+  let header = document.createElement('header')
+  header.className = 'ebg-turboui-modal--header'
+  header.id = 'ebg-turboui-modal-header'
+  header.style.width = '100%'
+  header.style.height = '40px'
+  header.style.borderBottom = '1px solid #d9d9d9'
+  header.style.position = 'relative'
+  header.style.cursor = 'move'
+  header.style.fontSize = '14px'
+  header.style.fontWeight = '700'
+  header.style.padding = '9px 40px 10px 24px'
+  header.style.boxSizing = 'border-box'
+  return header
+}
+
+function createElementCloseBtn() {
+  let close = document.createElement('div')
+  close.className = 'ebg-turboui-modal--close'
+  close.style.position = 'absolute'
+  close.style.top = '0'
+  close.style.right = '0'
+  close.style.width = '40px'
+  close.style.height = '40px'
+  close.innerText = '+'
+  close.style.fontSize = '22px'
+  close.style.fontWeight = '400'
+  close.style.textAlign = 'center'
+  close.style.lineHeight = '40px'
+  close.style.transform = 'rotate(45deg)'
+  close.style.color = '#c4c4c4'
+  close.style.userSelect = 'none'
+  close.style.cursor = 'pointer'
+  close.style.boxSizing = 'border-box'
+  return close
+}
+
+function createElementContent() {
+  let content = document.createElement('div')
+  content.className = 'ebg-turboui-modal--content'
+  content.style.padding = '24px 24px 0 24px'
+  content.style.height = '92px'
+  content.style.fontSize = '14px'
+  content.style.whiteSpace = 'normal'
+  content.style.wordBreak = 'break-word'
+  content.style.color = '#333'
+  content.style.boxSizing = 'border-box'
+  return content
+}
+
+function createElementFooter() {
+  let footer = document.createElement('div')
+  footer.className = 'ebg-turboui-modal--footer'
+  footer.padding = '0 24px 24px'
+  footer.style.textAlign = 'center'
+  return footer
+}
+
+function createElementButton() {
+  let button = document.createElement('div')
+  button.className = 'ebg-turboui-modal--button'
+  button.style.display = 'inline-block'
+  button.style.width = '80px'
+  button.style.height = '30px'
+  button.style.background = '#1890ff'
+  button.style.border = '1px solid #1890ff'
+  button.style.color = '#fff'
+  button.style.textAlign = 'center'
+  button.style.lineHeight = '30px'
+  button.style.borderRadius = '2px'
+  button.style.userSelect = 'none'
+  button.style.fontSize = '12px'
+  button.style.cursor = 'pointer'
+  button.style.margin = '0 12px'
+  button.style.boxSizing = 'border-box'
+  return button
+}
+
+function createElementCancel() {
+  let cancel = document.createElement('div')
+  cancel.className = 'ebg-turboui-modal--cancel'
+  cancel.style.display = 'inline-block'
+  cancel.style.width = '80px'
+  cancel.style.height = '30px'
+  cancel.style.background = '#fff'
+  cancel.style.border = '1px solid #d9d9d9'
+  cancel.style.color = '#1890ff'
+  cancel.style.textAlign = 'center'
+  cancel.style.lineHeight = '30px'
+  cancel.style.borderRadius = '2px'
+  cancel.style.userSelect = 'none'
+  cancel.style.fontSize = '12px'
+  cancel.style.cursor = 'pointer'
+  cancel.style.margin = '0 12px'
+  cancel.style.boxSizing = 'border-box'
+  return cancel
+}
+
+function modalAlert() {
+
+  let i18n = getI18n()
+  let lang = getNavigatorLanguage()
+
+  let that = this
+  let wrapper = createElementWrapper()
+
+  let box = createElementBox()
+  wrapper.appendChild(box)
+
+  let header = createElementHeader()
+  header.innerText = i18n[lang].tips
+  box.appendChild(header)
+
+  let close = createElementCloseBtn()
+  header.appendChild(close)
+
+  let content = createElementContent()
+  content.innerText = i18n[lang].content
+  box.appendChild(content)
+
+  let footer = createElementFooter()
+  box.appendChild(footer)
+
+  let button = createElementButton()
+  button.innerText = i18n[lang].button
+  footer.appendChild(button)
+
+  let cancel = createElementCancel()
+  cancel.innerText = i18n[lang].cancel
+  footer.appendChild(cancel)
+
+  modalAlertAddEvent(wrapper, button, cancel, close)
+}
+
+function modalAlertAddEvent(wrapper, button, cancel, close) {
+  document.getElementsByTagName('body')[0].appendChild(wrapper)
+  new DragEvent().init('ebg-turboui-modal-header', 'ebg-turboui-modal-box', null, null)
+
+  if (document.attachEvent) {
+    button.attachEvent('onclick', () => {
+      openChrome()
+    })
+    cancel.attachEvent('onclick', () => {
+      cancelCheckIEBrowser()
+    })
+    close.attachEvent('onclick', () => {
+      removeWrapper()
+    })
+  } else {
+    button.addEventListener('click', () => {
+      openChrome()
+    })
+    cancel.addEventListener('click', () => {
+      cancelCheckIEBrowser()
+    })
+    close.addEventListener('click', () => {
+      removeWrapper()
+    })
+  }
+
+  function openChrome() {
+    try {
+      let axo = new ActiveXObject('wscript.shell');
+      axo.run('chrome ' + window.location.href);
+    } catch (err) {
+    }
+
+    cancelCheckIEBrowser()
+  }
+
+  function cancelCheckIEBrowser() {
+    localStorage.checkIEBrowserTime = new Date().getTime()
+    removeWrapper()
+  }
+
+  function removeWrapper() {
+    document.getElementsByTagName('body')[0].removeChild(wrapper)
+  }
+}
+
+function checkIEBrowser() {
+  let checkIEBrowserTime = localStorage.checkIEBrowserTime
+  let now = new Date().getTime()
+  if (!checkIEBrowserTime || (checkIEBrowserTime + 1000 * 60 * 60 * 24) < now) {
+    if (!!window.ActiveXObject || 'ActiveXObject' in window) {
+      modalAlert()
+    }
+  }
+}

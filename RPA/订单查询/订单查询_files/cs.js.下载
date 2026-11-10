@@ -1,0 +1,414 @@
+(function (globalElements) {
+    const portalUspJS = {
+        hostUrl: '',
+        hotlineId: '',
+        locale: '',
+        version: '',
+        customKey: '',
+        uspJavascript: 'ihelp_component_script',
+        isUsp: false, // 是否从usp迁移
+        fromUSP: false, // 是否从usp转发
+        uspNode: null, // usp的script
+        uspSrc: '',
+        uspScriptIds: ['cbgEntrance', 'uspJavascriptNginx', 'uspJavascriptJalor', 'uspJavascript'], // 1.0插件静态资源id
+        uspRegex: /common\/js\/uspJS/i,
+        // 版本号
+        getDateRc: function () {
+            var uspDateRc = new Date();
+            var dateRc = uspDateRc.getFullYear() + '-' + (uspDateRc.getMonth() + 1) + '-' + uspDateRc.getDate(); // 按天
+            return dateRc;
+        },
+
+        getPluginConfigData: function () {
+            var pluginInfoKey = 'IHELP_TOOL_PLUGIN_' + portalUspJS.hotlineId;
+            portalUspJS.version = '';
+            if (window.localStorage.hasOwnProperty(pluginInfoKey)) {
+                let pluginInfo = {}
+                try {
+                    pluginInfo = JSON.parse(window.localStorage.getItem(pluginInfoKey));
+                    if (pluginInfo[portalUspJS.locale.toUpperCase()] && pluginInfo[portalUspJS.locale.toUpperCase()].version) {
+                        portalUspJS.version = '&version=' + pluginInfo[portalUspJS.locale.toUpperCase()].version;
+                    }
+                } catch (error) {
+                    pluginInfo = {}
+                }
+            }
+        },
+        // 加载JS
+        loadScript: function () {
+            try {
+                var scriptEle = document.createElement('script');
+                var scriptSrc = portalUspJS.hostUrl + 'ihelpTools.js?rc=' + portalUspJS.getDateRc() + portalUspJS.version;
+                scriptEle.type = 'text/javascript';
+                scriptEle.charset = 'UTF-8';
+                scriptEle.defer = true;
+                scriptEle.src = scriptSrc;
+                if (document.body) {
+                    document.body.appendChild(scriptEle);
+                } else {
+                    document.head.appendChild(scriptEle);
+                }
+            }
+            catch (err) {
+                globalElements.console.log(err);
+            }
+        },
+        // 初始化入口URl入参
+        refreshParameters: function (elementId) {
+            try {
+                if (!elementId) {
+                    return;
+                }
+                var elementDom = document.getElementById(elementId);
+                portalUspJS.uspScriptIds.forEach(scriptId => {
+                    if (!elementDom) {
+                        elementDom = document.getElementById(scriptId);
+                    }
+                })
+                portalUspJS.getPortalHost(elementDom.getAttribute('src'));
+                if (!portalUspJS.isUsp) {
+                    elementDom.removeAttribute('id')
+                } else {
+                    portalUspJS.uspNode = elementDom
+
+                }
+                if (portalUspJS.fromUSP) {
+                    let uspNode = null;
+                    for (const id of portalUspJS.uspScriptIds) {
+                        uspNode = document.getElementById(id);
+                        if (uspNode) {
+                            portalUspJS.uspNode = uspNode
+                            break
+                        }
+                    }
+                }
+            }
+            catch (err) { }
+        },
+        // 获取入口域名
+        getPortalHost: function (url) {
+            try {
+                if (url) {
+                    portalUspJS.isUsp = portalUspJS.uspRegex.test(url);
+                    portalUspJS.hotlineId = portalUspJS.getUrlParameterValue(portalUspJS.isUsp ? "appid" : "hotlineId", url);
+                    portalUspJS.locale = portalUspJS.getUrlParameterValue("locale", url);
+                    portalUspJS.customKey = portalUspJS.getUrlParameterValue("customKey", url);
+                    portalUspJS.fromUSP = portalUspJS.getUrlParameterValue("fromUSP", url) === 'Y'
+                    if (portalUspJS.locale && ['en-US', 'en_US', 'en'].indexOf(portalUspJS.locale) > -1) {
+                        portalUspJS.locale = 'en-US';
+                    }
+                    else {
+                        portalUspJS.locale = 'zh-CN';
+                    }
+                    if (portalUspJS.isUsp) {
+                        var newHost = portalUspJS.getDomainFromUsp(url);
+                        if (globalElements.location.protocol === 'http:' || globalElements.location.protocol === 'https:') {
+                            newHost = '//' + newHost;
+                        } else {
+                            newHost = 'https://' + newHost;
+                        }
+                        portalUspJS.hostUrl = newHost
+                    } else {
+                        var host = url.split('cs.js');
+                        var domainHost = '';
+                        if (host[0]) {
+                            domainHost = host[0].split('//')[1];
+                            if (globalElements.location.protocol === 'http:' || globalElements.location.protocol === 'https:') {
+                                domainHost = '//' + domainHost;
+                            } else {
+                                domainHost = 'https://' + domainHost;
+                            }
+                            portalUspJS.hostUrl = domainHost;
+                        }
+                    }
+                }
+            }
+            catch (err) { }
+        },
+        // 参数
+        getUrlParameterValue: function (asName, lsURL) {
+            var loU = lsURL.split("?");
+            if (loU.length > 1) {
+                var _csUrlParam = true;
+                var loallPm = loU[1].split("&");
+                for (var i = 0; i < loallPm.length; i++) {
+                    var loPm = loallPm[i].split("=");
+                    if (loPm[0] == asName) {
+                        if (loPm.length > 1) {
+                            return loPm[1];
+                        }
+                        else {
+                            return "";
+                        }
+                    }
+                }
+            }
+            return '';
+        },
+        // 转换usp域名到3.0地址
+        getDomainFromUsp(url) {
+            let host = '12345.his.huawei.com'
+            let sitHosts = ['//kwesit.huawei.com', 'kwesit.his.huawei.com']
+            if (sitHosts.find(host => url.includes(host))) {
+                host = 'console.his-op-beta.huawei.com'
+            }
+            let uatHosts = ['//kweuat.huawei.com', '//hicuat.huawei.com']
+            if (uatHosts.find(host => url.includes(host))) {
+                host = '12345.his-beta.huawei.com'
+            }
+            if (url.includes('//app.huawei.com')) {
+                host = 'app.huawei.com'
+            }
+            return `${host}/wecare/onlineservice/`
+        },
+        /**
+         * 回滚到1.0插件
+         */
+        loadUsp() {
+            if (!portalUspJS || !portalUspJS.uspNode) return;
+            let classKey = 'ihelp_plugin_downgraded'
+            let downGradeNodes = document.querySelectorAll(`.${classKey}`);
+            // 如果反复进行了回滚加载>50次，说明逻辑有问题，不再进行
+            if (downGradeNodes.length > 50) return;
+            let attrs = portalUspJS.uspNode.attributes;
+            let url = portalUspJS.uspNode.src;
+            if (!url) return;
+            let newNode = document.createElement('script');
+            for (const attr of attrs) {
+                newNode.setAttribute(attr.name, attr.value);
+            }
+            let urlArr = url.split('?');
+            url = `${urlArr[0]}?downgrade=1`;
+            if (urlArr[1]) {
+                url += `&${urlArr[1]}`;
+            }
+            portalUspJS.uspNode.removeAttribute('id');
+            portalUspJS.uspNode.classList.add(classKey);
+            newNode.src = portalUspJS._convertToDynamicProtocol(url);
+            const head = document.querySelector('head');
+            head.appendChild(newNode);
+        },
+        /**
+         * 迁移到3.0的v1插件
+         * 插件参数保持一致
+         */
+        loadUspV3() {
+            const current = new Date();
+            const uspRc = `${current.getFullYear()}-${current.getMonth() + 1}-${current.getDate()}`;
+            let newNode = document.createElement('script')
+            if (portalUspJS.uspNode) {
+                let attrs = portalUspJS.uspNode.attributes
+                for (const attr of attrs) {
+                    newNode.setAttribute(attr.name, attr.value);
+                }
+                portalUspJS.uspNode.removeAttribute('id')
+            } else {
+                newNode.type = 'text/javascript'
+                newNode.id = 'uspJavascript'
+                newNode.async = true
+            }
+            const locale = portalUspJS.locale.replace('-', '_')
+            newNode.src = `${portalUspJS.hostUrl}usp/uspJS.js?appid=${portalUspJS.hotlineId}&rc=${uspRc}&locale=${locale}&bgcolor=3`
+            const head = document.querySelector('head')
+            head.appendChild(newNode)
+        },
+        // 将地址转换为动态协议
+        _convertToDynamicProtocol(url) {
+            try {
+                if (['http:', 'https:'].includes(window.location.protocol) &&
+                  (url.startsWith('http://') || url.startsWith('https://'))) {
+                    return url.replace(/^(http|https):\/\//, '//');
+                }
+            } catch (e) {
+                return url;
+            }
+            return url;
+        },
+        /**
+         * 查询升级状态或者迁移状态
+         * 请求成功后，数据缓存5分钟
+         */
+        getUpgradeAndMigrate: function () {
+            let fallbackStatus = {
+                isUpgraded: 'N',
+                _csUpgrade: true,
+                isMigrated: 'N',
+                pluginConfig: null,
+            }
+
+            let cacheKey = `IHELP_UPGRADE_AND_MIGRATE_${portalUspJS.hotlineId}`
+            let currentTime = new Date().getTime()
+
+            // 检查缓存
+            let cacheInfo = portalUspJS.checkCache(cacheKey, currentTime)
+            if (cacheInfo) {
+                return Promise.resolve(cacheInfo)
+            }
+
+            // 构建请求地址
+            const host = portalUspJS.formatHost(portalUspJS.hostUrl)
+
+            return new Promise((resolve, reject) => {
+                portalUspJS.fetchWithTimeout(`${host}service/services/ihelp/plugin/upgrade/v1/status`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'X-Care-Hotline-Id': portalUspJS.hotlineId
+                    }
+                }, 8000).then(res => {
+                    if (!res.ok) {
+                        throw new Error('Network response was not ok', { cause: res })
+                    }
+                    return res.json()
+                }).then(res => {
+                    if (res.data) {
+                        let data = {
+                            isUpgraded: res.data.isUpgraded || fallbackStatus.isUpgraded,
+                            isMigrated: res.data.isMigrated || fallbackStatus.isMigrated,
+                            pluginConfig: res.data.pluginConfig || fallbackStatus.pluginConfig,
+                            time: currentTime,
+                        }
+                        portalUspJS.setLs(cacheKey, JSON.stringify(data))
+                        resolve(data)
+                    } else {
+                        throw new Error('Network response no data')
+                    }
+                }).catch(err => {
+                    console.error('Network request error:', err);
+                    reject(err)
+                })
+            })
+        },
+        // 部分浏览器可能没有localStorage
+        getLS: function (key) {
+            let _csLs = true;
+            try {
+                return window.localStorage.getItem(key)
+            } catch (e) {
+                return null
+            }
+        },
+        setLs: function (key, item) {
+            let _csSetLs = true;
+            try {
+                window.localStorage.setItem(key, item)
+            } catch (e) {
+            }
+        },
+        rmLs: function (key) {
+            let _csRmLs = true;
+            try {
+                window.localStorage.removeItem(key)
+            } catch (e) {
+            }
+        },
+        checkCache: function (cacheKey, currentTime) {
+            let _csCheck = true;
+            let CACHE_TIMEOUT = 5 * 60 * 1000
+            let cacheInfo = portalUspJS.getLS(cacheKey)
+            try {
+                if (cacheInfo) {
+                    cacheInfo = JSON.parse(cacheInfo)
+                    // 验证缓存数据的完整性和有效性
+                    if (
+                        cacheInfo &&
+                        cacheInfo.isUpgraded &&
+                        ['Y', 'N'].includes(cacheInfo.isUpgraded) &&
+                        cacheInfo.isMigrated &&
+                        ['Y', 'N'].includes(cacheInfo.isMigrated) &&
+                        cacheInfo.time &&
+                        cacheInfo.time > currentTime - CACHE_TIMEOUT &&
+                        cacheInfo.time <= currentTime
+                    ) {
+                        return cacheInfo
+                    } else {
+                        // 缓存数据不完整或无效，删除缓存
+                        portalUspJS.rmLs(cacheKey)
+                        return null
+                    }
+                } else {
+                    return null
+                }
+            } catch (e) {
+                // 解析失败，删除缓存
+                portalUspJS.rmLs(cacheKey)
+                return null
+            }
+        },
+        formatHost: function (host) {
+            let _csFormat = true;
+            if (!host || host.length === 0) {
+                return ''
+            }
+            // 检查Host是否已经包含协议
+            if (!host.startsWith('http://') && !host.startsWith('https://')) {
+                host = `https://${host}`
+            }
+            // 确保Host不以'//'开头
+            if (host.startsWith('//')) {
+                host = `https:${host}`
+            }
+            return host
+        },
+        initSetup: function () {
+            if (!(globalElements.uspJS && Object.keys(globalElements.uspJS).length)) {
+                globalElements.uspJS = {};
+            }
+            globalElements.uspJS.ihelpToolsUrl = portalUspJS.hostUrl
+            globalElements.uspJS.ihelpToolsHotlineId = portalUspJS.hotlineId
+            globalElements.uspJS.ihelpToolsLocale = portalUspJS.locale
+            globalElements.uspJS.ihelpToolsCustomKey = portalUspJS.customKey
+
+            // 获取插件版本号
+            portalUspJS.getPluginConfigData()
+
+
+            portalUspJS.loadScript();
+        },
+        fetchWithTimeout: function (url, options, timeout = 5000) {
+            let _csFetch = true;
+            return Promise.race([
+                fetch(url, options),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Request timed out')), timeout)
+                )
+            ]);
+        },
+        // 初始化
+        init: function () {
+
+            var ihelpToolsOld = document.getElementById("online_ihelp_components");
+            if(ihelpToolsOld) {
+                window.$ihelpTool = {}
+                ihelpToolsOld.parentNode.removeChild(ihelpToolsOld);
+            }
+
+            portalUspJS.refreshParameters(portalUspJS.uspJavascript);
+            // 如果是从usp迁移才判断是否升级
+            if (!portalUspJS.isUsp && !portalUspJS.fromUSP) {
+                portalUspJS.initSetup()
+                return
+            }
+            portalUspJS.getUpgradeAndMigrate().then(res => {
+                if (res.isUpgraded === 'Y') {
+                    // 还原参数到脚本中
+                    if (!document.getElementById(portalUspJS.uspJavascript) && portalUspJS.uspNode) {
+                        portalUspJS.uspNode.type = 'text/javascript';
+                        portalUspJS.uspNode.id = portalUspJS.uspJavascript;
+                        portalUspJS.uspNode.charset = 'utf-8';
+                        portalUspJS.uspNode.async = true;
+                        portalUspJS.uspNode.src = `${portalUspJS.hostUrl}cs.js?hotlineId=${portalUspJS.hotlineId}&locale=${portalUspJS.locale}`
+                    }
+                    portalUspJS.initSetup()
+                } else if (res.isMigrated === 'Y') {
+                    portalUspJS.loadUspV3()
+                } else {
+                    portalUspJS.loadUsp()
+                }
+            }).catch(err => {
+                portalUspJS.loadUspV3()
+            })
+        },
+    };
+    portalUspJS.init();
+})(window);

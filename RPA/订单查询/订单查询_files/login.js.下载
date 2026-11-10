@@ -1,0 +1,533 @@
+/**
+ * window.eplus_welink_login_client_id 免登使用的应用 client_id，默认为公共应用
+ * window.eplus_welink_js_api_version 指定 WeLink JSAPI 版本，默认为最新版本
+ * window.eplus_welink_login_latch 是否拦截请求，免登完成后放行，默认为 true
+ * window.eplus_welink_login_latch_whitelist 拦截白名单，默认清单之外补充
+ * window.eplus_welink_login_loading 是否创建全局 loading，必要时提示用户，默认为 true
+ */
+(function () {
+    // 是否 WeCode 环境
+    const isEplusWeCode = location.href.startsWith('file://') && location.href.includes('/apps/');
+    // 是否 H5 / 轻应用环境
+    const isEplusH5LApp = navigator.userAgent.includes('com.huawei.eplus') && navigator.userAgent.includes('HuaWei-AnyOffice');
+    // 是否 WeLink 环境
+    const isEplusWelink = isEplusWeCode || isEplusH5LApp;
+
+    // 非 WeLink 环境直接返回
+    if (!isEplusWelink) {
+        window.eplus_welink_login_promise = Promise.resolve();
+    } else {
+        const welinkJsApiVersion = window.eplus_welink_js_api_version || '2.0.12';
+        const welinkJsApiUrl = 'https://open-doc.welink.huaweicloud.com/docs/jsapi/' + welinkJsApiVersion + '/hwh5-cloudonline.js';
+
+        // const clientId = window.eplus_welink_login_client_id || '20230826181831811696901';
+        const clientId = window.eplus_welink_login_client_id || '20230831144331043912602';
+
+        // const apigAccessPoint = 'https://apigw-beta.huawei.com';
+        const apigAccessPoint = 'https://apigw-04.huawei.com';
+
+        const checkLoginUrl = apigAccessPoint + '/api/eplus/base/uiservice/checkLogin?X-HW-ID=com.huawei.coe.huawei_partner';
+        const getWcodeAuthUrl = apigAccessPoint + '/api/eplus/base/uiservice/vuser/getWcodeAuth?X-HW-ID=com.huawei.coe.huawei_partner';
+
+        const latchWhitelist = [
+            checkLoginUrl,
+            getWcodeAuthUrl,
+            'hwa.his.huawei.com',
+            'getWcodeAuth',
+            '/only4ssoTimeUpdate.do',
+            '/aiops/wedar/collect'
+        ].concat(window.eplus_welink_login_latch_whitelist);
+
+        const tokenExpireTime = 15 * 60 * 1000;
+        const heartbeatInterval = 3 * 60 * 1000;
+
+        const ssoKeys = [
+            'authmethod',
+            'hwsso_uniportal',
+            'hwssotinter',
+            'hwssotinter3',
+            'suid',
+            'uid'
+        ];
+
+        let deviceInfo = null;
+        let initialized = false;
+        let initialResolve = null;
+        let initialReject = null;
+        window.eplus_welink_login_promise = new Promise(function (resolve, reject) {
+            initialResolve = resolve;
+            initialReject = reject;
+        });
+
+        // 必要时拦截请求，保证时序。默认开启
+        window.eplus_welink_login_latch !== false && hijackHttpRequest();
+
+        let globalLoading = null;
+        // 创建全局 Loading 动效。默认开启
+        window.eplus_welink_login_loading !== false && createGlobalLoading();
+
+        const asyncDeviceInfo = (delay) => new Promise(resolve => {
+            setTimeout(() => {
+                HWH5.getDeviceInfo().then(data => {
+                    resolve(data)
+                })
+            }, delay * 1000)
+        });
+
+        // Android H5 环境中默认有 HWH5 对象，但是不全，仍然需要加载
+        (isEplusWeCode || (window.HWH5 && HWH5.getAuthCode)? Promise.resolve() : loadScript(welinkJsApiUrl))
+            .then(function () { 
+                return Promise.race([
+                    asyncDeviceInfo(0),
+                    asyncDeviceInfo(1),
+                    asyncDeviceInfo(3),
+                    asyncDeviceInfo(5),
+                ])
+            })
+            .then(function (data) {
+                deviceInfo = data;
+
+                // 心跳免登
+                heartbeat();
+
+                // 亮屏时免登（节流控制），避免长时间休眠后，亮屏时心跳响应不及时（偶现）
+                document.removeEventListener('visibilitychange', visibilitychangeHandler);
+                document.addEventListener('visibilitychange', visibilitychangeHandler);
+            });
+
+        let heartbeatTimer = null;
+        function heartbeat() {
+            console.log('heartbeat', new Date().toString().replace(/.*2024 /, '').replace(/ GMT.*/, ''));
+
+            heartbeatTimer && clearTimeout(heartbeatTimer);
+
+            autoLogin();
+
+            heartbeatTimer = setTimeout(heartbeat, heartbeatInterval);
+        }
+
+        let isLoggingIn = false;
+        let loginPromise = null;
+        // 免登
+        function autoLogin() {
+            // 并发控制，直接返回当前 promise
+            if (isLoggingIn) {
+                return loginPromise;
+            }
+            isLoggingIn = true;
+
+            // 同时调用，其中 checkLogin 较快，如果判断已经登录，直接 resolve
+            loginPromise = new Promise(function (resolve, reject) {
+                try {
+                    post(checkLoginUrl)
+                        .then(function (flag) { console.log('checkLogin', flag) || flag && resolve() })
+                        .catch(function (err) { console.log('checkLogin err:', err) });
+
+                    refreshToken()
+                        .then(resolve)
+                        .catch(reject);
+                } catch (err) {
+                    reject(err);
+                }
+            }).then(function () {
+                isLoggingIn = false;
+                hideLoading();
+
+                if (!initialized) {
+                    initialResolve();
+                    initialized = true;
+                }
+            }).catch(function () {
+                isLoggingIn = false;
+                hideLoading();
+            });
+
+            // 如果断言 Token 还有效，优化首屏体验，promise 直接 resolve
+            if (!assertTokenExpired()) {
+                if (!initialized) {
+                    console.log('断言有效，首屏优化')
+                    initialResolve();
+                    initialized = true;
+                }
+            }
+            // 如果断言 Token 已失效，且请求拦截开关关闭，则显示 Loading（开关开启时，Loading 由拦截器处理）
+            else if (initialized && window.eplus_welink_login_latch === false) {
+                showLoading();
+            }
+
+            return loginPromise;
+        }
+
+        // 刷新 Token
+        function refreshToken() {
+            return HWH5.getAuthCode().then(function (data) {
+                return post(getWcodeAuthUrl, { wcode: data.code, appId: clientId, deviceId: deviceInfo.deviceID })
+                    .then(function (res) {
+                        if (res.code === '200') {
+                            setToken(res.data.token);
+                            setLastRefreshTokenTime(Date.now());
+                            sessionStorage.removeItem('csrfTokenInfo');
+                        } else {
+                            if (res && res.data && res.data.errorCode === 'WCD-01-09') {
+                                setTimeout(() => { location.reload() }, 1000)
+                            }
+                            throw new Error(res);
+                        }
+                    });
+            });
+        }
+
+        /**
+         * 缓存 Token
+         * 
+         * 在 WeCode 中有 CSRF 问题，不采用 Set-Cookie 方式
+         * 当前对 getWcodeAuth 接口编写、配置了专用 APIG 插件，除了返回原始报文，还会在响应头中映射返回 Set-Cookie 字段
+         * 同时 Token 的最后刷新时间 eplusLastRefreshTokenTime 也在插件中生成，并通过 Set-Cookie 返回
+         * 这样安全浏览器 / WebView 会自动写入 .huawei.com 域，不用 js 主动处理
+         */
+        function setToken(token) {
+            if (isEplusH5LApp) {
+                Object.entries(token).map(function ([key, value]) { docCookies.setItem(key, value, 1800, '/', '.huawei.com') });
+            }
+            /**
+             * WeCode 本质上是 WebView 中运行本地文件，有几个特点：
+             * 1、位于 file://，Local Storage 互相可见
+             * 2、js 无法读写非本域，如 .huawei.com 或其它 WeCode 的 Cookie
+             * 3、Set-Cookie 仍然可以正常写入 .huawei.com，但是对 WeCode 来说有 CSRF 风险
+             * 4、iOS 使用 HWH5.fetchInternet 会自动携带 API 所在域的 Cookie，但 Android 需要主动传参（待确定）
+             * 
+             * 可以考虑下列方案：
+             * 1、使用 Cookie，WeCode 互相隔离
+             * 2、使用 Local Storage，WeCode 之间共享（注意，如果使用了外部第三方 WeCode，有安全风险）
+             */
+            else if (isEplusWeCode) {
+                const cookieStr = Object.entries(token).map(function ([key, value]) {
+                    return encodeURIComponent(key) + "=" + encodeURIComponent(value)
+                }).join(';');
+                localStorage.setItem('eplusCookieStr', cookieStr);
+            }
+        }
+
+        function getToken() {
+            if (isEplusH5LApp) {
+                // return ssoKeys.map(function (key) {
+                //     return encodeURIComponent(key) + '=' + encodeURIComponent(docCookies.getItem(key));
+                // }).join(';');
+                return document.cookie;
+            }
+            else if (isEplusWeCode) {
+                return localStorage.getItem('eplusCookieStr');
+            }
+        }
+
+        /**
+         * 记录 Token 刷新时间，选择与 setToken 相同的存储，保证可见性一致
+         * 
+         * 在 WeCode 中有 CSRF 问题，不采用 Set-Cookie 方式
+         * H5 自动写在 Cookie 中，.huawei.com 共享（Local Storage 只能写在当前域名下）
+         * WeCode 写在 Local Storage 共享，由于 js 获取不到 Set-Cookie（TODO，可以，但是错乱），值暂由本地计算，秒级差异
+         */
+        function setLastRefreshTokenTime(lastRefreshTokenTime) {
+            if (isEplusH5LApp) {
+                docCookies.setItem('eplusLastRefreshTokenTime', lastRefreshTokenTime, 1800, '/', '.huawei.com');
+            } else if (isEplusWeCode) {
+                return localStorage.setItem('eplusLastRefreshTokenTime', lastRefreshTokenTime);
+            }
+        }
+
+        function getLastRefreshTokenTime() {
+            if (isEplusH5LApp) {
+                // 在 WeCode 中有 CSRF 问题，不采用 Set-Cookie 方式
+                // Set-Cookie 响应头会自动写入，注意不要标记为 HttpOnly，否则 js 无法读取
+                return docCookies.getItem('eplusLastRefreshTokenTime') - 0 || 0;
+            } else if (isEplusWeCode) {
+                return localStorage.getItem('eplusLastRefreshTokenTime') - 0 || 0;
+            }
+        }
+
+        function post(url, body) {
+            if (isEplusH5LApp) {
+                return fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(body)
+                }).then(function (response) {
+                    const body = response.json();
+                    if (response.ok) {
+                        return body;
+                    }
+                    // 原生 fetch 不会抛出异常响应，而 HWH5.fetchInternet 会，保持一致
+                    throw new Error(body);
+                });
+            } else if (isEplusWeCode) {
+                return HWH5.fetchInternet(url, {
+                    method: 'post',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(body)
+                }).then(function (response) {
+                    if (url === getWcodeAuthUrl) {
+                        // console.log(response.headers['Set-Cookie']);
+                    }
+                    return response.json();
+                });
+            }
+        }
+
+        function hijackHttpRequest() {
+            // 原生 fetch 和 HWH5.fetch 类似，封装拦截逻辑
+            function wrapFetch(scope, funcName) {
+                const originalFetch = scope[funcName];
+                scope[funcName] = (function () {
+                    function fetch(arg) {
+                        const that = this;
+                        const args = arguments;
+                        return delayWhenNecessary(args[0]).then(function () {
+                            // 在 WeCode 中有 CSRF 问题，不采用 Set-Cookie 方式，需要主动传参
+                            if (isEplusWeCode && isHuaweiDomain(args[0])) {
+                                const options = args[1] || {};
+                                const headers = options.headers || {};
+                                options.headers = headers;
+                                if ('Cookie' in headers) {
+                                    headers.Cookie = undefined;
+                                }
+                                if ('cookie' in headers) {
+                                    headers.Cookie = undefined;
+                                }
+                                headers.Cookie = getToken();
+                                args[1] = options;
+                            }
+                            return originalFetch.apply(that, args);
+                        });
+                    };
+                    // eruda 检测了 fetch 是否是 function () { [native code] }，用 bind 可以绕过，方便调试
+                    return fetch.bind(scope);
+                })();
+            }
+
+            // WeCode 中只需要拦截 HWH5.fetch，不会用到 XHR 和 window.fetch
+            if (isEplusWeCode) {
+                HWH5.fetch && wrapFetch(HWH5, 'fetch');
+                HWH5.fetchInternet && wrapFetch(HWH5, 'fetchInternet');
+            } else if (isEplusH5LApp) {
+                window.fetch && wrapFetch(window, 'fetch');
+
+                const originalXHROpen = XMLHttpRequest.prototype.open;
+                const originalXHRSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.open = function () {
+                    const that = this;
+                    const args = arguments;
+                    that.latchPromise = delayWhenNecessary(args[1]);
+                    return originalXHROpen.apply(that, args);
+                };
+                XMLHttpRequest.prototype.send = function () {
+                    const that = this;
+                    const args = arguments;
+                    that.latchPromise.then(function () {
+                        originalXHRSend.apply(that, args);
+                    });
+                };
+            }
+        }
+
+        function isHuaweiDomain(param) {
+            const url = new URL(param.startsWith('//') ? 'https:' + param : param);
+            return url.hostname.endsWith('.huawei.com');
+        }
+
+        // 必要时增加延时，只处理 .huawei.com 下，且白名单外的请求
+        function delayWhenNecessary(param) {
+            // 初始化或断言 Token 失效
+            if (!initialized || assertTokenExpired()) {
+                const url = new URL(param.startsWith('//') ? 'https:' + param : param);
+                if (url.hostname.endsWith('.huawei.com')) {
+                    const latched = !latchWhitelist.some(function (api) {
+                        return param.includes(api);
+                    });
+                    console.log('delay', param, latched, initialized);
+                    if (latched) {
+                        if (initialized) {
+                            showLoading();
+                            return autoLogin();
+                        } else {
+                            // 初始化时不显示 Loading，避免与应用自身 Loading 冲突
+                            return window.eplus_welink_login_promise;
+                        }
+                    }
+                }
+            }
+            return Promise.resolve();
+        }
+
+        // 根据最后刷新时间，断言 Token 是否失效
+        function assertTokenExpired() {
+            // 60s 裕度
+            return Date.now() - getLastRefreshTokenTime() > tokenExpireTime - 60 * 1000;
+        }
+
+        // 最后一次亮屏事件时间（节流）
+        let lastVisibleTime = Date.now();
+        function visibilitychangeHandler() {
+            if (document.visibilityState === 'visible') {
+                const now = Date.now();
+                console.log('visible', new Date().toString().replace(/.*2024 /, '').replace(/ GMT.*/, ''));
+                if (now - lastVisibleTime > heartbeatInterval) {
+                    lastVisibleTime = now;
+                    // 超过心跳间隔，说明可能心跳未及时触发，或者上次刷新失败，或者长时间休眠，此时介入处理
+                    if (now - getLastRefreshTokenTime() > heartbeatInterval) {
+                        autoLogin();
+                    }
+                }
+            }
+        }
+
+        /**
+         * 创建全局 Loading 容器，用于提示用户，同时阻塞后续交互
+         * 整体方案设计已经最小化对用户的打扰，通常不会触发，可能触发的典型场景是：
+         * 
+         * 长时间休眠后，再次激活应用时，在心跳或亮屏事件中会静默刷新 Token，但此时不会显示 Loading
+         * 用户单纯的页面交互，如滑动浏览已加载的内容，也不会显示 Loading
+         * 
+         * 直到触发了服务请求，如按钮操作、懒加载内容等，若此时 Token 仍未刷新完成（一般 2 秒内）
+         * 1、为了保证登录态，请求会自动延时，直到 Token 刷新完成
+         * 2、为了避免用户交互触发更多服务请求，扩大影响面，UI 临时遮罩并且 Loading 提示
+         */
+        function createGlobalLoading() {
+            function setStyle(dom, style) {
+                Object.keys(style).forEach(function (key) { dom.style[key] = style[key] });
+            }
+
+            setTimeout(function () {
+                globalLoading = document.createElement('div');
+                setStyle(globalLoading, {
+                    display: 'none',
+                    position: 'fixed',
+                    top: '0',
+                    left: '0',
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0, 0, 0, 0)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: '99999',
+                    opacity: '1'
+                });
+
+                const spin = document.createElement('div');
+                setStyle(spin, {
+                    width: '44px',
+                    height: '44px',
+                    'border-radius': '50%',
+                    background: 'conic-gradient(transparent, #67C1FF, #039BE5)',
+                    '-webkit-mask': 'radial-gradient(circle, transparent 64.3%, black 64.3%)',
+                    mask: 'radial-gradient(circle, transparent 64.3%, black 64.3%)',
+                    animation: 'login-spin 1s linear infinite'
+                });
+
+                const style = document.createElement('style');
+                style.appendChild(document.createTextNode('@keyframes login-spin {0% {transform: rotate(0deg);} 100% {transform: rotate(360deg); }}'));
+
+                globalLoading.appendChild(spin);
+
+                document.body.appendChild(globalLoading);
+                document.body.appendChild(style);
+            }, 0);
+        }
+
+        function showLoading() {
+            console.log('show');
+            globalLoading && (globalLoading.style.display = 'flex');
+        }
+
+        function hideLoading() {
+            console.log('hide');
+            globalLoading && (globalLoading.style.display = 'none');
+        }
+
+        const docCookies = {
+            getItem: function (sKey) {
+                return (
+                    decodeURIComponent(
+                        document.cookie.replace(
+                            new RegExp(
+                                "(?:(?:^|.*;)\\s*" +
+                                encodeURIComponent(sKey).replace(/[-.+*]/g, "\\$&") +
+                                "\\s*\\=\\s*([^;]*).*$)|^.*$",
+                            ),
+                            "$1",
+                        ),
+                    ) || null
+                );
+            },
+            setItem: function (sKey, sValue, vEnd, sPath, sDomain, bSecure) {
+                if (!sKey || /^(?:expires|max\-age|path|domain|secure)$/i.test(sKey)) {
+                    return false;
+                }
+                var sExpires = "";
+                if (vEnd) {
+                    switch (vEnd.constructor) {
+                        case Number:
+                            sExpires =
+                                vEnd === Infinity
+                                    ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT"
+                                    : "; max-age=" + vEnd;
+                            break;
+                        case String:
+                            sExpires = "; expires=" + vEnd;
+                            break;
+                        case Date:
+                            sExpires = "; expires=" + vEnd.toUTCString();
+                            break;
+                    }
+                }
+                document.cookie =
+                    encodeURIComponent(sKey) +
+                    "=" +
+                    encodeURIComponent(sValue) +
+                    sExpires +
+                    (sDomain ? "; domain=" + sDomain : "") +
+                    (sPath ? "; path=" + sPath : "") +
+                    (bSecure ? "; secure" : "");
+                return true;
+            },
+            removeItem: function (sKey, sPath, sDomain) {
+                if (!sKey || !this.hasItem(sKey)) {
+                    return false;
+                }
+                document.cookie =
+                    encodeURIComponent(sKey) +
+                    "=; expires=Thu, 01 Jan 1970 00:00:00 GMT" +
+                    (sDomain ? "; domain=" + sDomain : "") +
+                    (sPath ? "; path=" + sPath : "");
+                return true;
+            },
+            hasItem: function (sKey) {
+                return new RegExp(
+                    "(?:^|;\\s*)" +
+                    encodeURIComponent(sKey).replace(/[-.+*]/g, "\\$&") +
+                    "\\s*\\=",
+                ).test(document.cookie);
+            },
+            keys: /* optional method: you can safely remove it! */ function () {
+                var aKeys = document.cookie
+                    .replace(/((?:^|\s*;)[^\=]+)(?=;|$)|^\s*|\s*(?:\=[^;]*)?(?:\1|$)/g, "")
+                    .split(/\s*(?:\=[^;]*)?;\s*/);
+                for (var nIdx = 0; nIdx < aKeys.length; nIdx++) {
+                    aKeys[nIdx] = decodeURIComponent(aKeys[nIdx]);
+                }
+                return aKeys;
+            },
+        };
+
+        function loadScript(url) {
+            return new Promise(function (resolve, reject) {
+                const script = document.createElement('script');
+                script.type = 'text/javascript';
+                script.src = url;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+    }
+})();

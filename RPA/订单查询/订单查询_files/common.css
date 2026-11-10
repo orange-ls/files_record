@@ -1,0 +1,10 @@
+.aui-file-upload-box-width { width: 280px; }
+.aui-file-upload-box .aui-upload-list__item-edminfo,
+.aui-file-upload-box .aui-icon-close-tip { display: none; }
+.aui-file-upload-box .aui-upload.aui-upload--text { display: inline; }
+.aui-file-upload-box ul li { line-height: 1; }
+.aui-file-upload-box ul li a {
+  width: calc(100% - 20px); line-height: 34px; color: #40a9ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.aui-file-upload-box ul li a .aui-svg-size.aui-svg { display: none; }
+.aui-file-upload-box ul li .aui-upload-list__item-status-label { top: 11px; }

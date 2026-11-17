@@ -44,6 +44,8 @@ pwdhf = shenma2026Q3!
 userbj = szshbj
 pwdbj = shenma2026Q3@
 
+https://partner.huawei.com/eplus/#/cn/group/search-order?fuzzy=
+
 
 -------------------------------------------------------------
 DB账号：
